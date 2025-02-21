@@ -1,0 +1,16 @@
+SELECT
+    match_id,
+    radiant_win,
+    start_time,
+    duration,
+    lobby_type,
+    game_mode,
+    avg_rank_tier,
+    num_rank_tier,
+    radiant_team,
+    dire_team
+FROM public_matches
+WHERE game_mode = 22
+AND lobby_type IN (0, 7)
+ORDER BY match_id DESC
+LIMIT 100

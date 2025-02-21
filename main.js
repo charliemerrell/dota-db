@@ -1,7 +1,6 @@
 const duckdb = require("duckdb");
 const axios = require("axios");
 const arrow = require("apache-arrow");
-const util = require("util");
 const path = require("path");
 
 main();
@@ -12,20 +11,13 @@ async function main() {
     try {
         CreateTableIfNotExists(con);
 
-        const runAsync = util.promisify(con.run.bind(con));
-
-        // Install and load Arrow extension
-        await runAsync(`INSTALL arrow; LOAD arrow;`);
+        await runAsync(con, `INSTALL arrow; LOAD arrow;`);
 
         // Fetch matches and insert them into the database
         while (true) {
-            const maxMatchId = (await getMaxMatchId(con)) || 0;
-            let maxMatchIdStr = maxMatchId.toString();
-            if (maxMatchIdStr.endsWith("n")) {
-                maxMatchIdStr = maxMatchIdStr.slice(0, -1);
-            }
-            console.log("Max match ID:", maxMatchIdStr);
-            const matches = await getNextMatches(maxMatchIdStr, 100000);
+            const maxMatchId = (await getMaxMatchId(con)) || "0";
+            console.log("Max match ID:", maxMatchId);
+            const matches = await getNextMatches(maxMatchId, 100000);
             if (matches.length === 0) {
                 console.log("No more matches to fetch.");
                 break;
@@ -36,6 +28,18 @@ async function main() {
     } finally {
         con.close();
     }
+}
+
+function runAsync(con, query) {
+    return new Promise((resolve, reject) => {
+        con.run(query, (err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
 }
 
 function CreateDatabaseIfNotExists() {
@@ -100,7 +104,11 @@ function getMaxMatchId(con) {
                 if (err) {
                     reject(err);
                 } else {
-                    resolve(rows[0]["max"]);
+                    let maxMatchIdStr = rows[0]["max"].toString();
+                    if (maxMatchIdStr.endsWith("n")) {
+                        maxMatchIdStr = maxMatchIdStr.slice(0, -1);
+                    }
+                    resolve(maxMatchIdStr);
                 }
             }
         );

@@ -84,36 +84,40 @@ async function main() {
 
             // Fetch matches and insert them into the database
             const matches = await getNextMatches(0, 10);
-            appendMatches(matches, db);
+            await appendMatches(matches, db);
             console.log("Matches inserted successfully.");
         } catch (err) {
             console.warn(err);
         }
     } finally {
-        // con.close();
+        con.close();
     }
 }
 main();
 
 function appendMatches(matches, db) {
-    const arrowTable = arrow.tableFromJSON(matches);
-    db.register_buffer(
-        "arrow_matches",
-        [arrow.tableToIPC(arrowTable)],
-        true,
-        async (err, res) => {
-            if (err) {
-                console.warn(err);
-                return;
-            }
-            db.exec(
-                `INSERT INTO public_matches SELECT * FROM arrow_matches;`,
-                (err) => {
-                    if (err) {
-                        console.error("Error inserting matches:", err.message);
-                    }
+    return new Promise((resolve, reject) => {
+        const arrowTable = arrow.tableFromJSON(matches);
+        db.register_buffer(
+            "arrow_matches",
+            [arrow.tableToIPC(arrowTable)],
+            true,
+            (err, res) => {
+                if (err) {
+                    reject(err);
+                    return;
                 }
-            );
-        }
-    );
+                db.exec(
+                    `INSERT INTO public_matches SELECT * FROM arrow_matches;`,
+                    (err) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    }
+                );
+            }
+        );
+    });
 }

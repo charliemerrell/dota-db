@@ -1,4 +1,6 @@
 const duckdb = require("duckdb");
+const axios = require("axios");
+const arrow = require("apache-arrow");
 
 function CreateDatabaseIfNotExists() {
     return new duckdb.Database(":memory:");
@@ -28,10 +30,65 @@ function CreateTableIfNotExists(con) {
     });
 }
 
-const db = CreateDatabaseIfNotExists();
-const con = db.connect();
-try {
-    CreateTableIfNotExists(con);
-} finally {
-    con.close();
+async function getNextMatches(greaterThanMatchId, n) {
+    const sql = `
+        SELECT
+            match_id,
+            radiant_win,
+            start_time,
+            duration,
+            lobby_type,
+            game_mode,
+            avg_rank_tier,
+            num_rank_tier,
+            radiant_team,
+            dire_team
+        FROM public_matches
+        WHERE match_id > ${greaterThanMatchId}
+        AND lobby_type = 7
+        AND game_mode = 22
+        ORDER BY match_id DESC
+        LIMIT ${n}
+    `;
+    const encodedSql = encodeURIComponent(sql);
+    const url = `https://api.opendota.com/api/explorer?sql=${encodedSql}`;
+    const response = await axios.get(url);
+    return response.data.rows;
 }
+
+async function main() {
+    const db = CreateDatabaseIfNotExists();
+    const con = db.connect();
+    try {
+        CreateTableIfNotExists(con);
+
+        // Install and load Arrow extension
+        con.run(`INSTALL arrow; LOAD arrow;`, async (err) => {
+            if (err) {
+                console.warn(err);
+                return;
+            }
+
+            // Fetch matches and insert them into the database
+            const matches = await getNextMatches(0, 10);
+            const arrowTable = arrow.tableFromJSON(matches);
+            db.register_buffer(
+                "matchesTable",
+                [arrow.tableToIPC(arrowTable)],
+                true,
+                (err, res) => {
+                    if (err) {
+                        console.warn(err);
+                        return;
+                    }
+
+                    // `SELECT * FROM matchesTable` would return the entries in `matches`
+                    console.log("Matches inserted successfully.");
+                }
+            );
+        });
+    } finally {
+        con.close();
+    }
+}
+main();

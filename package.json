@@ -10,6 +10,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "apache-arrow": "^19.0.1",
+    "axios": "^1.7.9",
     "duckdb": "^1.2.0"
   }
 }

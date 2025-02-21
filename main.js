@@ -78,7 +78,7 @@ async function main() {
                     maxMatchIdStr = maxMatchIdStr.slice(0, -1);
                 }
                 console.log("Max match ID:", maxMatchIdStr);
-                const matches = await getNextMatches(maxMatchIdStr, 10);
+                const matches = await getNextMatches(maxMatchIdStr, 100000);
                 if (matches.length === 0) {
                     console.log("No more matches to fetch.");
                     break;

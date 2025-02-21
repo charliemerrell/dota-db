@@ -2,9 +2,10 @@ const duckdb = require("duckdb");
 const axios = require("axios");
 const arrow = require("apache-arrow");
 const util = require("util");
+const path = require("path");
 
 function CreateDatabaseIfNotExists() {
-    return new duckdb.Database(":memory:");
+    return new duckdb.Database(path.join(__dirname, "dota.db"));
 }
 
 function CreateTableIfNotExists(con) {
@@ -100,7 +101,6 @@ function getMaxMatchId(con) {
             if (err) {
                 reject(err);
             } else {
-                console.log(rows)
                 resolve(rows[0]["max"]);
             }
         });

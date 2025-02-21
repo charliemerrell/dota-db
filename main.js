@@ -48,26 +48,13 @@ async function getNextMatches(greaterThanMatchId, n) {
         WHERE match_id > ${greaterThanMatchId}
         AND lobby_type = 7
         AND game_mode = 22
-        ORDER BY match_id DESC
+        ORDER BY match_id ASC
         LIMIT ${n}
     `;
     const encodedSql = encodeURIComponent(sql);
     const url = `https://api.opendota.com/api/explorer?sql=${encodedSql}`;
     const response = await axios.get(url);
     return response.data.rows;
-}
-
-function PrintMatches(con) {
-    const selectQuery = `
-    SELECT * FROM public_matches;
-    `;
-    con.all(selectQuery, (err, rows) => {
-        if (err) {
-            console.error("Error selecting matches:", err.message);
-        } else {
-            console.log("Matches:", rows);
-        }
-    });
 }
 
 async function main() {
@@ -83,9 +70,21 @@ async function main() {
             await runAsync(`INSTALL arrow; LOAD arrow;`);
 
             // Fetch matches and insert them into the database
-            const matches = await getNextMatches(0, 10);
-            await appendMatches(matches, db);
-            console.log("Matches inserted successfully.");
+            for (let i = 0; i < 10; i++) {
+                const maxMatchId = (await getMaxMatchId(con)) || 0;
+                let maxMatchIdStr = maxMatchId.toString();
+                if (maxMatchIdStr.endsWith('n')) {
+                    maxMatchIdStr = maxMatchIdStr.slice(0, -1);
+                }
+                console.log("Max match ID:", maxMatchIdStr);
+                const matches = await getNextMatches(maxMatchIdStr, 10);
+                if (matches.length === 0) {
+                    console.log("No more matches to fetch.");
+                    break;
+                }
+                await appendMatches(matches, db);
+                console.log("Matches inserted successfully.");
+            }
         } catch (err) {
             console.warn(err);
         }
@@ -95,6 +94,19 @@ async function main() {
 }
 main();
 
+function getMaxMatchId(con) {
+    return new Promise((resolve, reject) => {
+        con.all(`SELECT MAX(match_id) AS max FROM public_matches;`, (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                console.log(rows)
+                resolve(rows[0]["max"]);
+            }
+        });
+    });
+}
+
 function appendMatches(matches, db) {
     return new Promise((resolve, reject) => {
         const arrowTable = arrow.tableFromJSON(matches);
@@ -102,7 +114,7 @@ function appendMatches(matches, db) {
             "arrow_matches",
             [arrow.tableToIPC(arrowTable)],
             true,
-            (err, res) => {
+            (err, _) => {
                 if (err) {
                     reject(err);
                     return;

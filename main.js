@@ -84,22 +84,8 @@ async function main() {
 
             // Fetch matches and insert them into the database
             const matches = await getNextMatches(0, 10);
-            const arrowTable = arrow.tableFromJSON(matches);
-            db.register_buffer("arrow_matches", [arrow.tableToIPC(arrowTable)], true, async (err, res) => {
-                if (err) {
-                    console.warn(err);
-                    return;
-                }
-                db.exec(`INSERT INTO public_matches SELECT * FROM arrow_matches;`, (err) => {
-                    if (err) {
-                        console.error("Error inserting matches:", err.message);
-                    }
-                });
-                PrintMatches(con);
-            });
-            
+            appendMatches(matches, db);
             console.log("Matches inserted successfully.");
-
         } catch (err) {
             console.warn(err);
         }
@@ -108,3 +94,26 @@ async function main() {
     }
 }
 main();
+
+function appendMatches(matches, db) {
+    const arrowTable = arrow.tableFromJSON(matches);
+    db.register_buffer(
+        "arrow_matches",
+        [arrow.tableToIPC(arrowTable)],
+        true,
+        async (err, res) => {
+            if (err) {
+                console.warn(err);
+                return;
+            }
+            db.exec(
+                `INSERT INTO public_matches SELECT * FROM arrow_matches;`,
+                (err) => {
+                    if (err) {
+                        console.error("Error inserting matches:", err.message);
+                    }
+                }
+            );
+        }
+    );
+}

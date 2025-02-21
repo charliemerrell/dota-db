@@ -71,10 +71,10 @@ async function main() {
             await runAsync(`INSTALL arrow; LOAD arrow;`);
 
             // Fetch matches and insert them into the database
-            for (let i = 0; i < 10; i++) {
+            while (true) {
                 const maxMatchId = (await getMaxMatchId(con)) || 0;
                 let maxMatchIdStr = maxMatchId.toString();
-                if (maxMatchIdStr.endsWith('n')) {
+                if (maxMatchIdStr.endsWith("n")) {
                     maxMatchIdStr = maxMatchIdStr.slice(0, -1);
                 }
                 console.log("Max match ID:", maxMatchIdStr);
@@ -97,13 +97,16 @@ main();
 
 function getMaxMatchId(con) {
     return new Promise((resolve, reject) => {
-        con.all(`SELECT MAX(match_id) AS max FROM public_matches;`, (err, rows) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(rows[0]["max"]);
+        con.all(
+            `SELECT MAX(match_id) AS max FROM public_matches;`,
+            (err, rows) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(rows[0]["max"]);
+                }
             }
-        });
+        );
     });
 }
 

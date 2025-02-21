@@ -32,7 +32,7 @@ rl.on("line", (line) => {
                 }
                 return row;
             });
-            console.log(JSON.stringify(serializedRows, null, 2));
+            console.table(serializedRows);
         }
         rl.prompt();
     });

@@ -14,28 +14,24 @@ async function main() {
 
         const runAsync = util.promisify(con.run.bind(con));
 
-        try {
-            // Install and load Arrow extension
-            await runAsync(`INSTALL arrow; LOAD arrow;`);
+        // Install and load Arrow extension
+        await runAsync(`INSTALL arrow; LOAD arrow;`);
 
-            // Fetch matches and insert them into the database
-            while (true) {
-                const maxMatchId = (await getMaxMatchId(con)) || 0;
-                let maxMatchIdStr = maxMatchId.toString();
-                if (maxMatchIdStr.endsWith("n")) {
-                    maxMatchIdStr = maxMatchIdStr.slice(0, -1);
-                }
-                console.log("Max match ID:", maxMatchIdStr);
-                const matches = await getNextMatches(maxMatchIdStr, 100000);
-                if (matches.length === 0) {
-                    console.log("No more matches to fetch.");
-                    break;
-                }
-                await appendMatches(matches, db);
-                console.log("Matches inserted successfully.");
+        // Fetch matches and insert them into the database
+        while (true) {
+            const maxMatchId = (await getMaxMatchId(con)) || 0;
+            let maxMatchIdStr = maxMatchId.toString();
+            if (maxMatchIdStr.endsWith("n")) {
+                maxMatchIdStr = maxMatchIdStr.slice(0, -1);
             }
-        } catch (err) {
-            console.warn(err);
+            console.log("Max match ID:", maxMatchIdStr);
+            const matches = await getNextMatches(maxMatchIdStr, 100000);
+            if (matches.length === 0) {
+                console.log("No more matches to fetch.");
+                break;
+            }
+            await appendMatches(matches, db);
+            console.log("Matches inserted successfully.");
         }
     } finally {
         con.close();

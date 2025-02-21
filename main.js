@@ -1,6 +1,7 @@
 const duckdb = require("duckdb");
 const axios = require("axios");
 const arrow = require("apache-arrow");
+const util = require("util");
 
 function CreateDatabaseIfNotExists() {
     return new duckdb.Database(":memory:");
@@ -56,39 +57,54 @@ async function getNextMatches(greaterThanMatchId, n) {
     return response.data.rows;
 }
 
+function PrintMatches(con) {
+    const selectQuery = `
+    SELECT * FROM public_matches;
+    `;
+    con.all(selectQuery, (err, rows) => {
+        if (err) {
+            console.error("Error selecting matches:", err.message);
+        } else {
+            console.log("Matches:", rows);
+        }
+    });
+}
+
 async function main() {
     const db = CreateDatabaseIfNotExists();
     const con = db.connect();
     try {
         CreateTableIfNotExists(con);
 
-        // Install and load Arrow extension
-        con.run(`INSTALL arrow; LOAD arrow;`, async (err) => {
-            if (err) {
-                console.warn(err);
-                return;
-            }
+        const runAsync = util.promisify(con.run.bind(con));
+
+        try {
+            // Install and load Arrow extension
+            await runAsync(`INSTALL arrow; LOAD arrow;`);
 
             // Fetch matches and insert them into the database
             const matches = await getNextMatches(0, 10);
             const arrowTable = arrow.tableFromJSON(matches);
-            db.register_buffer(
-                "matchesTable",
-                [arrow.tableToIPC(arrowTable)],
-                true,
-                (err, res) => {
-                    if (err) {
-                        console.warn(err);
-                        return;
-                    }
-
-                    // `SELECT * FROM matchesTable` would return the entries in `matches`
-                    console.log("Matches inserted successfully.");
+            db.register_buffer("arrow_matches", [arrow.tableToIPC(arrowTable)], true, async (err, res) => {
+                if (err) {
+                    console.warn(err);
+                    return;
                 }
-            );
-        });
+                db.exec(`INSERT INTO public_matches SELECT * FROM arrow_matches;`, (err) => {
+                    if (err) {
+                        console.error("Error inserting matches:", err.message);
+                    }
+                });
+                PrintMatches(con);
+            });
+            
+            console.log("Matches inserted successfully.");
+
+        } catch (err) {
+            console.warn(err);
+        }
     } finally {
-        con.close();
+        // con.close();
     }
 }
 main();

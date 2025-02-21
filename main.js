@@ -1,17 +1,10 @@
-const sqlite3 = require("sqlite3").verbose();
-const path = require("path");
+const duckdb = require("duckdb");
 
-function CreateDbIfNotExists(dbPath) {
-    return new sqlite3.Database(dbPath, (err) => {
-        if (err) {
-            console.error("Error opening database:", err.message);
-        } else {
-            console.log("Connected to the SQLite database.");
-        }
-    });
+function CreateDatabaseIfNotExists() {
+    return new duckdb.Database(":memory:");
 }
 
-function CreateTablesIfNotExists(db) {
+function CreateTableIfNotExists(con) {
     const createTableQuery = `
     CREATE TABLE IF NOT EXISTS public_matches (
       match_id bigint PRIMARY KEY,
@@ -26,7 +19,7 @@ function CreateTablesIfNotExists(db) {
       dire_team integer[]
     );
     `;
-    db.run(createTableQuery, (err) => {
+    con.run(createTableQuery, (err) => {
         if (err) {
             console.error("Error creating table:", err.message);
         } else {
@@ -35,14 +28,10 @@ function CreateTablesIfNotExists(db) {
     });
 }
 
-const dbPath = path.resolve(__dirname, "dota.db");
-const db = CreateDbIfNotExists(dbPath);
-CreateTablesIfNotExists(db);
-
-db.close((err) => {
-    if (err) {
-        console.error("Error closing database:", err.message);
-    } else {
-        console.log("Database connection closed.");
-    }
-});
+const db = CreateDatabaseIfNotExists();
+const con = db.connect();
+try {
+    CreateTableIfNotExists(con);
+} finally {
+    con.close();
+}

@@ -9,9 +9,12 @@ async function main() {
     const db = CreateDatabaseIfNotExists();
     const con = db.connect();
     try {
-        await CreateTableIfNotExists(con);
-
         await ensureArrowInstalled(con);
+
+        await CreateMatchesTableIfNotExists(con);
+        await CreateHeroesTableIfNotExists(con);
+
+        await refreshHeroesTable(db);
 
         // Fetch matches and insert them into the database
         while (true) {
@@ -46,7 +49,7 @@ function CreateDatabaseIfNotExists() {
     return new duckdb.Database(path.join(__dirname, "dota.db"));
 }
 
-function CreateTableIfNotExists(con) {
+function CreateMatchesTableIfNotExists(con) {
     return new Promise((resolve, reject) => {
         const createTableQuery = `
         CREATE TABLE IF NOT EXISTS public_matches (
@@ -64,17 +67,43 @@ function CreateTableIfNotExists(con) {
         `;
         con.run(createTableQuery, (err) => {
             if (err) {
-                console.error("Error creating table:", err.message);
                 reject(err);
             } else {
-                console.log("Table created successfully.");
                 resolve();
             }
         });
     });
 }
 
-async function getNextMatches(greaterThanMatchId, n) {
+function CreateHeroesTableIfNotExists(con) {
+    return new Promise((resolve, reject) => {
+        const createTableQuery = `
+        CREATE TABLE IF NOT EXISTS heroes(
+            id int PRIMARY KEY,
+            name text,
+            localized_name text,
+            primary_attr text,
+            attack_type text,
+        );
+        `;
+        con.run(createTableQuery, (err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
+}
+
+async function queryOpenDota(sql) {
+    const encodedSql = encodeURIComponent(sql);
+    const url = `https://api.opendota.com/api/explorer?sql=${encodedSql}`;
+    const response = await axios.get(url);
+    return response.data.rows;
+}
+
+function getNextMatches(greaterThanMatchId, n) {
     const sql = `
         SELECT
             match_id,
@@ -94,10 +123,7 @@ async function getNextMatches(greaterThanMatchId, n) {
         ORDER BY match_id ASC
         LIMIT ${n}
     `;
-    const encodedSql = encodeURIComponent(sql);
-    const url = `https://api.opendota.com/api/explorer?sql=${encodedSql}`;
-    const response = await axios.get(url);
-    return response.data.rows;
+    return queryOpenDota(sql);
 }
 
 function getMaxMatchId(con) {
@@ -133,6 +159,54 @@ function appendMatches(matches, db) {
                 }
                 db.exec(
                     `INSERT INTO public_matches SELECT * FROM arrow_matches;`,
+                    (err) => {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve();
+                        }
+                    }
+                );
+            }
+        );
+    });
+}
+
+async function refreshHeroesTable(db) {
+    // truncate heroes table
+    await new Promise((resolve, reject) => {
+        db.exec(`DELETE FROM heroes;`, (err) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve();
+            }
+        });
+    });
+
+    const sql = `
+        SELECT
+            id,
+            name,
+            localized_name,
+            primary_attr,
+            attack_type
+        FROM heroes
+    `;
+    const heroes = await queryOpenDota(sql);
+    return new Promise((resolve, reject) => {
+        const arrowTable = arrow.tableFromJSON(heroes);
+        db.register_buffer(
+            "arrow_heroes",
+            [arrow.tableToIPC(arrowTable)],
+            true,
+            (err, _) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                db.exec(
+                    `INSERT INTO heroes SELECT * FROM arrow_heroes;`,
                     (err) => {
                         if (err) {
                             reject(err);

@@ -11,7 +11,7 @@ async function main() {
     try {
         CreateTableIfNotExists(con);
 
-        await runAsync(con, `INSTALL arrow; LOAD arrow;`);
+        await ensureArrowInstalled(con);
 
         // Fetch matches and insert them into the database
         while (true) {
@@ -30,9 +30,9 @@ async function main() {
     }
 }
 
-function runAsync(con, query) {
+function ensureArrowInstalled(con) {
     return new Promise((resolve, reject) => {
-        con.run(query, (err) => {
+        con.run("INSTALL arrow; LOAD arrow;", (err) => {
             if (err) {
                 reject(err);
             } else {

@@ -54,6 +54,7 @@ pair_win_rates AS (
         COUNT(*) AS total
     FROM pair_results
     GROUP BY id1, id2
+    HAVING total > 10000 -- filter out pairs with low total matches
 ),
 pair_synergy AS (
     SELECT
